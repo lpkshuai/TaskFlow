@@ -1,7 +1,26 @@
 import { generateId } from '@/utils/format'
 import { TASK_PRIORITY, TASK_STATUS } from '@/utils/constants'
+import type { PaginatedResult } from '@/types/api'
+import type {
+  Note,
+  NotePayload,
+  NoteQuery,
+} from '@/types/note'
+import type {
+  Task,
+  TaskPayload,
+  TaskQuery,
+  DashboardStats,
+} from '@/types/task'
+import type {
+  LoginCredentials,
+  LoginResult,
+  UpdateProfilePayload,
+  User,
+  UserRecord,
+} from '@/types/user'
 
-const users = [
+const users: UserRecord[] = [
   {
     id: 'user_1',
     username: 'admin',
@@ -24,7 +43,7 @@ const users = [
   },
 ]
 
-let tasks = [
+let tasks: Task[] = [
   {
     id: 'task_1',
     title: '完成项目需求文档',
@@ -87,7 +106,7 @@ let tasks = [
   },
 ]
 
-let notes = [
+let notes: Note[] = [
   {
     id: 'note_1',
     title: 'Vue3 组合式 API 笔记',
@@ -120,11 +139,22 @@ let notes = [
   },
 ]
 
-function delay(ms = 400) {
+type TaskUpdatePayload = Partial<TaskPayload>
+type NoteUpdatePayload = Partial<NotePayload>
+
+type SafeUser = Omit<UserRecord, 'password'>
+
+type ProfileUpdatePayload = Partial<Pick<User, 'name' | 'email' | 'avatar'>>
+
+function delay(ms = 400): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-function paginate(list, page = 1, pageSize = 10) {
+function paginate<T>(
+  list: T[],
+  page = 1,
+  pageSize = 10,
+): PaginatedResult<T> {
   const start = (page - 1) * pageSize
   return {
     list: list.slice(start, start + pageSize),
@@ -134,7 +164,7 @@ function paginate(list, page = 1, pageSize = 10) {
   }
 }
 
-function filterTasks(params = {}) {
+function filterTasks(params: TaskQuery = {}): Task[] {
   let result = [...tasks]
   const { keyword, status, priority, assigneeId } = params
 
@@ -144,42 +174,42 @@ function filterTasks(params = {}) {
       (t) =>
         t.title.toLowerCase().includes(kw) ||
         t.description.toLowerCase().includes(kw) ||
-        t.tags.some((tag) => tag.toLowerCase().includes(kw))
+        t.tags.some((tag) => tag.toLowerCase().includes(kw)),
     )
   }
   if (status) result = result.filter((t) => t.status === status)
   if (priority) result = result.filter((t) => t.priority === priority)
   if (assigneeId) result = result.filter((t) => t.assigneeId === assigneeId)
 
-  result.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+  result.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
   return result
 }
 
-function filterNotes(params = {}) {
+function filterNotes(params: NoteQuery = {}): Note[] {
   let result = [...notes]
   const { keyword, category } = params
 
   if (keyword) {
     const kw = keyword.toLowerCase()
     result = result.filter(
-      (n) => n.title.toLowerCase().includes(kw) || n.content.toLowerCase().includes(kw)
+      (n) => n.title.toLowerCase().includes(kw) || n.content.toLowerCase().includes(kw),
     )
   }
   if (category) result = result.filter((n) => n.category === category)
 
   result.sort((a, b) => {
-    if (a.isPinned !== b.isPinned) return b.isPinned - a.isPinned
-    return new Date(b.updatedAt) - new Date(a.updatedAt)
+    if (a.isPinned !== b.isPinned) return Number(b.isPinned) - Number(a.isPinned)
+    return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   })
   return result
 }
 
 export const mockApi = {
-  async login({ username, password }) {
+  async login({ username, password }: LoginCredentials): Promise<LoginResult> {
     await delay(600)
     const user = users.find((u) => u.username === username && u.password === password)
     if (!user) {
-      const err = new Error('用户名或密码错误')
+      const err = new Error('用户名或密码错误') as Error & { code?: number }
       err.code = 401
       throw err
     }
@@ -190,7 +220,7 @@ export const mockApi = {
     }
   },
 
-  async getProfile(userId) {
+  async getProfile(userId: string): Promise<SafeUser> {
     await delay(300)
     const user = users.find((u) => u.id === userId)
     if (!user) throw new Error('用户不存在')
@@ -198,7 +228,7 @@ export const mockApi = {
     return safeUser
   },
 
-  async updateProfile(userId, data) {
+  async updateProfile(userId: string, data: ProfileUpdatePayload): Promise<SafeUser> {
     await delay(400)
     const index = users.findIndex((u) => u.id === userId)
     if (index === -1) throw new Error('用户不存在')
@@ -207,28 +237,28 @@ export const mockApi = {
     return safeUser
   },
 
-  async getUsers() {
+  async getUsers(): Promise<SafeUser[]> {
     await delay(200)
     return users.map(({ password, ...u }) => u)
   },
 
-  async getTasks(params = {}) {
+  async getTasks(params: TaskQuery = {}): Promise<PaginatedResult<Task>> {
     await delay(500)
     const filtered = filterTasks(params)
     const { page = 1, pageSize = 10 } = params
     return paginate(filtered, page, pageSize)
   },
 
-  async getTaskById(id) {
+  async getTaskById(id: string): Promise<Task> {
     await delay(300)
     const task = tasks.find((t) => t.id === id)
     if (!task) throw new Error('任务不存在')
     return task
   },
 
-  async createTask(data) {
+  async createTask(data: TaskPayload): Promise<Task> {
     await delay(400)
-    const task = {
+    const task: Task = {
       id: generateId('task'),
       ...data,
       createdAt: new Date().toISOString(),
@@ -238,7 +268,7 @@ export const mockApi = {
     return task
   },
 
-  async updateTask(id, data) {
+  async updateTask(id: string, data: TaskUpdatePayload): Promise<Task> {
     await delay(400)
     const index = tasks.findIndex((t) => t.id === id)
     if (index === -1) throw new Error('任务不存在')
@@ -251,7 +281,7 @@ export const mockApi = {
     return tasks[index]
   },
 
-  async deleteTask(id) {
+  async deleteTask(id: string): Promise<{ success: true }> {
     await delay(300)
     const index = tasks.findIndex((t) => t.id === id)
     if (index === -1) throw new Error('任务不存在')
@@ -259,23 +289,23 @@ export const mockApi = {
     return { success: true }
   },
 
-  async getNotes(params = {}) {
+  async getNotes(params: NoteQuery = {}): Promise<PaginatedResult<Note>> {
     await delay(400)
     const filtered = filterNotes(params)
     const { page = 1, pageSize = 10 } = params
     return paginate(filtered, page, pageSize)
   },
 
-  async getNoteById(id) {
+  async getNoteById(id: string): Promise<Note> {
     await delay(300)
     const note = notes.find((n) => n.id === id)
     if (!note) throw new Error('笔记不存在')
     return note
   },
 
-  async createNote(data) {
+  async createNote(data: NotePayload): Promise<Note> {
     await delay(400)
-    const note = {
+    const note: Note = {
       id: generateId('note'),
       ...data,
       createdAt: new Date().toISOString(),
@@ -285,7 +315,7 @@ export const mockApi = {
     return note
   },
 
-  async updateNote(id, data) {
+  async updateNote(id: string, data: NoteUpdatePayload): Promise<Note> {
     await delay(400)
     const index = notes.findIndex((n) => n.id === id)
     if (index === -1) throw new Error('笔记不存在')
@@ -298,7 +328,7 @@ export const mockApi = {
     return notes[index]
   },
 
-  async deleteNote(id) {
+  async deleteNote(id: string): Promise<{ success: true }> {
     await delay(300)
     const index = notes.findIndex((n) => n.id === id)
     if (index === -1) throw new Error('笔记不存在')
@@ -306,7 +336,7 @@ export const mockApi = {
     return { success: true }
   },
 
-  async getDashboardStats() {
+  async getDashboardStats(): Promise<DashboardStats> {
     await delay(350)
     const taskStats = {
       total: tasks.length,
@@ -319,10 +349,10 @@ export const mockApi = {
       pinned: notes.filter((n) => n.isPinned).length,
     }
     const recentTasks = [...tasks]
-      .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
       .slice(0, 5)
     const recentNotes = [...notes]
-      .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
       .slice(0, 5)
 
     return { taskStats, noteStats, recentTasks, recentNotes }
